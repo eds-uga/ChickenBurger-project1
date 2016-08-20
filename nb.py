@@ -11,11 +11,20 @@ D=X.zip(Y)
 def documentProcessor(x):
     (document,labels) = x
     cleanLabels = [label for label in labels.upper().split(',') if label in {'MCAT','CCAT','ECAT','GCAT'}]
-    cleanWords = [(w,len(cleanLabels)) for w in document.lower().split(' ')]
+    cleanWords = [(w,{label:1 for label in cleanLabels}) for w in document.lower().split(' ')]
     return (cleanWords,cleanLabels)
 
+def catAccumulator(x,y):
+    for key in y:
+        if key in x:
+            x[key]+= y[key]
+        else:
+            x[key]=y[key]
+    return x
 Dcurated = D.map(documentProcessor)
-Dcurated.foreach(print)
+wordCountByCat = Dcurated.flatMap(lambda x: x[0])#.groupByKey().map(lambda x: (x[0],list(x[1])))
+wordCountByCat = wordCountByCat.reduceByKey(catAccumulator)
+wordCountByCat.foreach(print)
 
 import sys
 
