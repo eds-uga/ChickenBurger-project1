@@ -14,10 +14,8 @@ args = vars(parser.parse_args())
 
 sc = SparkContext("local[*]","Naive Bayes", pyFiles = ['nb.py'])
 
-x_train = args['x_train']
-y_train = args['y_train']
-X = sc.textFile(x_train)
-Y = sc.textFile(y_train)
+X = sc.textFile(args['x_train'])
+Y = sc.textFile(args['y_train'])
 
 def naive_bayes_train(xRDD,yRDD): # maybe pass a tokenizer for filtering on line 18
     #dRDD=xRDD.zip(yRDD)	
