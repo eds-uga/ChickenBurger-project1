@@ -1,12 +1,23 @@
+import argparse
 from __future__ import print_function
 from pyspark import SparkContext
 #from nltk import word_tokenize
 
+# Defining arguments for parsing the input fies
+parser = argparse.ArgumentParser()
+parser.add_argument("-x", "--x_train", required = True,
+	help="Training set input file x")
+parser.add_argument("-y", "--y_train", required = True,
+	help="Training set input file Y")
+
+args = vars(parser.parse_args())
+
 sc = SparkContext("local[*]","Naive Bayes", pyFiles = ['nb.py'])
 
-X = sc.textFile('data/X_train_small.txt')
-Y = sc.textFile('data/y_train_small.txt')
-
+x_train = args['x_train']
+y_train = args['y_train']
+X = sc.textFile(x_train)
+Y = sc.textFile(y_train)
 
 def naive_bayes_train(xRDD,yRDD): # maybe pass a tokenizer for filtering on line 18
     #dRDD=xRDD.zip(yRDD)	
