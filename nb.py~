@@ -4,16 +4,12 @@ from pyspark import SparkContext
 
 sc = SparkContext("local[*]","Naive Bayes", pyFiles = ['nb.py'])
 
-X = sc.textFile('data/X_train_small.txt')
-Y = sc.textFile('data/y_train_small.txt')
+X = sc.textFile('data/X_train_vsmall.txt')
+Y = sc.textFile('data/y_train_vsmall.txt')
 
 
 def naive_bayes_train(xRDD,yRDD): # maybe pass a tokenizer for filtering on line 18
-    #dRDD=xRDD.zip(yRDD)	
-    xRDD=xRDD.zipWithIndex().map(lambda x: (x[1],x[0]))
-    yRDD=yRDD.zipWithIndex().map(lambda x: (x[1],x[0]))
-    dRDD=xRDD.join(yRDD).map(lambda x: x[1])
-    #print("here"*80)
+    dRDD=xRDD.zip(yRDD)	
 #(wordCountByCatRDD, catCount)=naive_bayes_train(trainingDatasetDocsRDD,trainingDatasetLabelsRDD)
     def documentProcessor(x):
         (document,labels) = x
@@ -81,7 +77,7 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCountRDD):
         for cat in catCount:
             p = catCount[cat] / float(totalNumberOfDocs)
             for word in x[1]:
-                p *= word[1].get(cat,10e-7) / (float(sumDictValues(word[1])) or 10e-7)
+                p *= word[1].get(cat,10e-7) / float(sumDictValues(word[1]))
             if p >= maxP:
                 maxP = p
                 maxCat = cat
@@ -93,29 +89,15 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCountRDD):
     return predictionsRDD
 
 (wordCountByCatRDD,catCountRDD) = naive_bayes_train(X,Y)
-#testDocument = u"Thursday night in the Oval Office with"
-#testDocument2 = u"Friday Morning out of the Square Swimming Pool without"
-#testRDD = sc.parallelize([testDocument,testDocument2]).zipWithIndex() # (testDocument, 0)
-testRDD = sc.textFile('data/X_test_small.txt').zipWithIndex() # shift + $ to the end; shift+6 to the beginnig
-
-testLabelsRDD = sc.textFile('data/y_test_small.txt').zipWithIndex().map(lambda x:(x[1],x[0]))# docId being the first element
-
-
+testDocument = u"Thursday night in the Oval Office with"
+testDocument2 = u"Friday Morning out of the Square Swimming Pool without"
+testRDD = sc.parallelize([testDocument,testDocument2]).zipWithIndex() # (testDocument, 0)
 # predictionsRDD = naive_bayes_predict(testingDatasetDocsRDD, wordCountByCatRDD, catCountRDD)
 
 predictionsRDD = naive_bayes_predict(testRDD,wordCountByCatRDD, catCountRDD)
 
-#predictionsRDD.foreach(print)
-def score (predictionsRDD,testLabelsRDD):
-    joinRDD = predictionsRDD.join(testLabelsRDD)     
-    correctNum = 0
-    total      = 0
-    gradeRDD = joinRDD.map( lambda x : 1 if x[1][0][0] in x[1][1].split(",") else 0 ) # return value after :  
-    #print("*"*80)
-    #joinRDD.foreach(print)
-    #print("/"*80)
-    correctNum = gradeRDD.reduce(lambda x,y :x+y) 
-    total = gradeRDD.count()
-    return correctNum / float (total)
-accuracy = score(predictionsRDD, testLabelsRDD)
-print(accuracy*100)
+predictionsRDD.foreach(print)
+
+
+#accuracy = score(predictionsRDD, testingDatasetLabelsRDD)
+
