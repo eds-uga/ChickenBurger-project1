@@ -1,19 +1,22 @@
-import argparse
 from __future__ import print_function
+import argparse
 from pyspark import SparkContext
 #from nltk import word_tokenize
 
 # Defining arguments for parsing the input fies
 parser = argparse.ArgumentParser()
-parser.add_argument("-x", "--x_train", required = True,
+parser.add_argument("--x-train", required = True,
 	help="Training set input file x")
-parser.add_argument("-y", "--y_train", required = True,
+parser.add_argument("--y-train", required = True,
 	help="Training set input file Y")
+parser.add_argument("--x-test", required = True,
+	help="Testing set input file x")
+parser.add_argument("--y-test", required = True,
+	help="Testing set input file Y")
 
 args = vars(parser.parse_args())
 
 sc = SparkContext("local[*]","Naive Bayes", pyFiles = ['nb.py'])
-
 X = sc.textFile(args['x_train'])
 Y = sc.textFile(args['y_train'])
 
@@ -42,12 +45,14 @@ def naive_bayes_train(xRDD,yRDD): # maybe pass a tokenizer for filtering on line
     wordCountByCatRDD = wordCountByCatRDD.reduceByKey(catAccumulator)
     #wordCountByCat.foreach(print)    
     catCountRDD = DcuratedRDD.flatMap(lambda x :[(tag,1) for tag in x[1]]).reduceByKey(lambda x,y:x+y)# -> [("c", c_num) , ("m",m_num), ~~~, ~~~]
-    return wordCountByCatRDD,catCountRDD
+    catCount = dict(catCountRDD.collect())
+    totalWordsByCat = wordCountByCatRDD.map(lambda x: x[1]).reduce(catAccumulator)
+    return wordCountByCatRDD,catCount,totalWordsByCat
 
 
 
 
-def naive_bayes_predict (testRDD,wordCountByCatRDD, catCountRDD):
+def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat):
 
     testRDDSplit=testRDD.flatMap(lambda x: [(w,x[1]) for w in  x[0].lower().split(' ')])
     #testRDDSplit.foreach(print)
@@ -66,7 +71,6 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCountRDD):
     #docRDD.foreach(print)
 
 
-    catCount = dict(catCountRDD.collect())
 
     def sumDictValues(d):
         s = 0
@@ -75,22 +79,27 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCountRDD):
         return s
 
     totalNumberOfDocs = sumDictValues(catCount)
-    #print(totalNumberOfDocs)
-    #print(catCount)
+    vocabCount = wordCountByCatRDD.count()
+
+    totalWordsByCatBroadCast = sc.broadcast(totalWordsByCat)
+    vocabCountBroadCast = sc.broadcast(vocabCount)
     totalNumberOfDocsBroadCast=sc.broadcast(totalNumberOfDocs)
     catCountBroadCast=sc.broadcast(catCount)
 
     def naiveBayes(x): #(docID, [(word1, {}), (word2, {}),....])
-        maxP = 0
+        from math import log
+        maxP = float('-inf')
         maxCat = u'MCAT'
 
+        vocabCount = vocabCountBroadCast.value
         catCount = catCountBroadCast.value
         totalNumberOfDocs=totalNumberOfDocsBroadCast.value
+        totalWordsByCat = totalWordsByCatBroadCast.value
 
         for cat in catCount:
-            p = catCount[cat] / float(totalNumberOfDocs)
+            p = log((catCount[cat] + (1.0/len(catCount)))) - log(float(totalNumberOfDocs + 1))
             for word in x[1]:
-                p *= word[1].get(cat,10e-7) / (float(sumDictValues(word[1])) or 10e-7)
+                p += log(word[1].get(cat,0)+ (1.0/vocabCount)) - log( (float(totalWordsByCat[cat]) + 1))
             if p >= maxP:
                 maxP = p
                 maxCat = cat
@@ -101,18 +110,20 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCountRDD):
     predictionsRDD = docRDD.map(naiveBayes)
     return predictionsRDD
 
-(wordCountByCatRDD,catCountRDD) = naive_bayes_train(X,Y)
+(wordCountByCatRDD,catCount,totalWordsByCat) = naive_bayes_train(X,Y)
+
 #testDocument = u"Thursday night in the Oval Office with"
 #testDocument2 = u"Friday Morning out of the Square Swimming Pool without"
 #testRDD = sc.parallelize([testDocument,testDocument2]).zipWithIndex() # (testDocument, 0)
-testRDD = sc.textFile('data/X_test_small.txt').zipWithIndex() # shift + $ to the end; shift+6 to the beginnig
 
-testLabelsRDD = sc.textFile('data/y_test_small.txt').zipWithIndex().map(lambda x:(x[1],x[0]))# docId being the first element
+
+testRDD = sc.textFile(args['x_test']).zipWithIndex() # shift + $ to the end; shift+6 to the beginnig
+testLabelsRDD = sc.textFile(args['y_test']).zipWithIndex().map(lambda x:(x[1],x[0]))# docId being the first element
 
 
 # predictionsRDD = naive_bayes_predict(testingDatasetDocsRDD, wordCountByCatRDD, catCountRDD)
 
-predictionsRDD = naive_bayes_predict(testRDD,wordCountByCatRDD, catCountRDD)
+predictionsRDD = naive_bayes_predict(testRDD,wordCountByCatRDD, catCount, totalWordsByCat)
 
 #predictionsRDD.foreach(print)
 def score (predictionsRDD,testLabelsRDD):
