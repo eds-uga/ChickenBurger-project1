@@ -127,8 +127,6 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat):
 
 
 testRDD = sc.textFile(args['xs']).zipWithIndex() # shift + $ to the end; shift+6 to the beginnig
-testLabelsRDD = sc.textFile(args['ys']).zipWithIndex().map(lambda x:(x[1],x[0]))# docId being the first element
-
 
 # predictionsRDD = naive_bayes_predict(testingDatasetDocsRDD, wordCountByCatRDD, catCountRDD)
 
@@ -146,5 +144,8 @@ def score (predictionsRDD,testLabelsRDD):
     correctNum = gradeRDD.reduce(lambda x,y :x+y) 
     total = gradeRDD.count()
     return correctNum / float (total)
-accuracy = score(predictionsRDD, testLabelsRDD)
-print(accuracy*100)
+	
+if args['ys'] is not None:
+    testLabelsRDD = sc.textFile(args['ys']).zipWithIndex().map(lambda x:(x[1],x[0]))# docId being the first element
+    accuracy = score(predictionsRDD, testLabelsRDD)
+    print(accuracy*100)
