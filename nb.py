@@ -5,28 +5,29 @@ from pyspark import SparkContext
 
 # Defining arguments for parsing the input fies
 parser = argparse.ArgumentParser()
-parser.add_argument("--x-train", required = True,
+parser.add_argument("-x", required = True,
 	help="Training set input file x")
-parser.add_argument("--y-train", required = True,
+parser.add_argument("-y", required = True,
 	help="Training set input file Y")
-parser.add_argument("--x-test", required = True,
+parser.add_argument("-xs", required = True,
 	help="Testing set input file x")
-parser.add_argument("--y-test", required = True,
+parser.add_argument("-ys", required = False,
 	help="Testing set input file Y")
-parser.add_argument("--y-test", required = False,
-	help="Testing set input file Y")
-parser.add_argument("--output-path", required = False,
-	help="Testing set input file Y")
+parser.add_argument("-o", required = False,
+	help="Testing set output file Y")
+
 
 args = vars(parser.parse_args())
 
 # To check if the testing lable or output path are not imported by the user
-if ( "y_test" not in args and "output_path" not in args):
-    raise Exception(“Either testing labels or an output-path should be provided”)
+if args['ys'] is None and args['o'] is None:
+    raise ValueError('Either Testing set input file or output file should be provided')
+
+
 
 sc = SparkContext("local[*]","Naive Bayes", pyFiles = ['nb.py'])
-X = sc.textFile(args['x_train'])
-Y = sc.textFile(args['y_train'])
+X = sc.textFile(args['x'])
+Y = sc.textFile(args['y'])
 
 def naive_bayes_train(xRDD,yRDD): # maybe pass a tokenizer for filtering on line 18
     #dRDD=xRDD.zip(yRDD)	
@@ -125,8 +126,8 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat):
 #testRDD = sc.parallelize([testDocument,testDocument2]).zipWithIndex() # (testDocument, 0)
 
 
-testRDD = sc.textFile(args['x_test']).zipWithIndex() # shift + $ to the end; shift+6 to the beginnig
-testLabelsRDD = sc.textFile(args['y_test']).zipWithIndex().map(lambda x:(x[1],x[0]))# docId being the first element
+testRDD = sc.textFile(args['xs']).zipWithIndex() # shift + $ to the end; shift+6 to the beginnig
+testLabelsRDD = sc.textFile(args['ys']).zipWithIndex().map(lambda x:(x[1],x[0]))# docId being the first element
 
 
 # predictionsRDD = naive_bayes_predict(testingDatasetDocsRDD, wordCountByCatRDD, catCountRDD)
