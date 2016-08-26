@@ -35,17 +35,19 @@ def tokenizer(s,stopwords=None): # stop words in the tokenizer from "sw.txt" ~70
     else:
         return [x for x in s.lower().split()]
 
-def naive_bayes_train(xRDD,yRDD): # maybe pass a tokenizer for filtering on line 18
+def naive_bayes_train(xRDD, yRDD, stopwords=None): # maybe pass a tokenizer for filtering on line 18
     #dRDD=xRDD.zip(yRDD)	
     xRDD=xRDD.zipWithIndex().map(lambda x: (x[1],x[0]))
     yRDD=yRDD.zipWithIndex().map(lambda x: (x[1],x[0]))
     dRDD=xRDD.join(yRDD).map(lambda x: x[1])
+    stopwordsBroadCast=sc.broadcast(stopwords) # stopwordsBroadCast is a handler or say data wrapper
+
     #print("here"*80)
 #(wordCountByCatRDD, catCount)=naive_bayes_train(trainingDatasetDocsRDD,trainingDatasetLabelsRDD)
     def documentProcessor(x):
         (document,labels) = x
         cleanLabels = [label for label in labels.upper().split(',') if label in {'MCAT','CCAT','ECAT','GCAT'}] # need to remove the no label documents
-        cleanWords = [(w,{label:1 for label in cleanLabels}) for w in document.lower().split(' ')]
+        cleanWords = [(w,{label:1 for label in cleanLabels}) for w in tokenizer(document, stopwords=stopwordsBroadCast.value)] 
         return (cleanWords,cleanLabels)
 
     def catAccumulator(x,y):
@@ -66,9 +68,9 @@ def naive_bayes_train(xRDD,yRDD): # maybe pass a tokenizer for filtering on line
 
 
 
-def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat):
-
-    testRDDSplit=testRDD.flatMap(lambda x: [(w,x[1]) for w in  x[0].lower().split(' ')])
+def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat, stopwords=None):
+    stopwords=sc.broadcast(stopwords)
+    testRDDSplit=testRDD.flatMap(lambda x: [(w,x[1]) for w in  tockenizer(x[0],stopwordsBroadCast.value)])
     #testRDDSplit.foreach(print)
 
     jointRDD = testRDDSplit.join(wordCountByCatRDD)  #(uga,0).join((uga,{})) => (uga, (0,{})) 
@@ -142,11 +144,11 @@ stopwords = None
 if args['stop']:
     stopwords = loadStopWords(args['stop'])
 
-(wordCountByCatRDD,catCount,totalWordsByCat) = naive_bayes_train(X,Y)
+(wordCountByCatRDD,catCount,totalWordsByCat) = naive_bayes_train(X,Y,stopwords)
 
 testRDD = sc.textFile(args['xs']).zipWithIndex() # shift + $ to the end; shift+6 to the beginnig
 
-predictionsRDD = naive_bayes_predict(testRDD,wordCountByCatRDD, catCount, totalWordsByCat)
+predictionsRDD = naive_bayes_predict(testRDD,wordCountByCatRDD, catCount, totalWordsByCat,stopwords)
 	
 if args['ys'] is not None:
     testLabelsRDD = sc.textFile(args['ys']).zipWithIndex().map(lambda x:(x[1],x[0]))# docId being the first element
