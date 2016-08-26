@@ -13,8 +13,16 @@ parser.add_argument("--x-test", required = True,
 	help="Testing set input file x")
 parser.add_argument("--y-test", required = True,
 	help="Testing set input file Y")
+parser.add_argument("--y-test", required = False,
+	help="Testing set input file Y")
+parser.add_argument("--output-path", required = False,
+	help="Testing set input file Y")
 
 args = vars(parser.parse_args())
+
+# To check if the testing lable or output path are not imported by the user
+if ( "y_test" not in args and "output_path" not in args):
+    raise Exception(“Either testing labels or an output-path should be provided”)
 
 sc = SparkContext("local[*]","Naive Bayes", pyFiles = ['nb.py'])
 X = sc.textFile(args['x_train'])
