@@ -16,6 +16,8 @@ parser.add_argument("-ys", required = False,
 parser.add_argument("-o", required = False,
 	help="Testing set output file Y")
 
+parser.add_argument("-stop", required = False,
+        help="Stopwords list file")
 
 args = vars(parser.parse_args())
 
@@ -25,12 +27,11 @@ if args['ys'] is None and args['o'] is None:
 
 
 
-def loadStopWords(path):
-    return {s.lower() for s in sc.textFile(path).collect()}
-
-def tokenizer(s,stopwords=None):
+def loadStopWords(path): # load the stopword file path # stop word are command words donot give information
+    return {s.lower() for s in sc.textFile(path).collect()} # since sw.txt is a small file, use collect to be one file and low it and return a set {}, look up set is very fast 
+def tokenizer(s,stopwords=None): # stop words in the tokenizer from "sw.txt" ~700 words, from multiple files 
     if stopwords:
-        return [x for x in s.lower().split() if x not in stopwords]
+        return [x for x in s.lower().split() if x not in stopwords]  # only return the non-stop words
     else:
         return [x for x in s.lower().split()]
 
@@ -43,7 +44,7 @@ def naive_bayes_train(xRDD,yRDD): # maybe pass a tokenizer for filtering on line
 #(wordCountByCatRDD, catCount)=naive_bayes_train(trainingDatasetDocsRDD,trainingDatasetLabelsRDD)
     def documentProcessor(x):
         (document,labels) = x
-        cleanLabels = [label for label in labels.upper().split(',') if label in {'MCAT','CCAT','ECAT','GCAT'}]
+        cleanLabels = [label for label in labels.upper().split(',') if label in {'MCAT','CCAT','ECAT','GCAT'}] # need to remove the no label documents
         cleanWords = [(w,{label:1 for label in cleanLabels}) for w in document.lower().split(' ')]
         return (cleanWords,cleanLabels)
 
@@ -135,6 +136,12 @@ def score (predictionsRDD,testLabelsRDD):
 sc = SparkContext("local[*]","Naive Bayes", pyFiles = ['nb.py'])
 X = sc.textFile(args['x'])
 Y = sc.textFile(args['y'])
+
+#load stop words only if a pass is provided
+stopwords = None
+if args['stop']:
+    stopwords = loadStopWords(args['stop'])
+
 (wordCountByCatRDD,catCount,totalWordsByCat) = naive_bayes_train(X,Y)
 
 testRDD = sc.textFile(args['xs']).zipWithIndex() # shift + $ to the end; shift+6 to the beginnig
