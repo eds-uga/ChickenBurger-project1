@@ -25,9 +25,14 @@ if args['ys'] is None and args['o'] is None:
 
 
 
-sc = SparkContext("local[*]","Naive Bayes", pyFiles = ['nb.py'])
-X = sc.textFile(args['x'])
-Y = sc.textFile(args['y'])
+def loadStopWords(path):
+    return {s.lower() for s in sc.textFile(path).collect()}
+
+def tokenizer(s,stopwords=None):
+    if stopwords:
+        return [x for x in s.lower().split() if x not in stopwords]
+    else:
+        return [x for x in s.lower().split()]
 
 def naive_bayes_train(xRDD,yRDD): # maybe pass a tokenizer for filtering on line 18
     #dRDD=xRDD.zip(yRDD)	
@@ -52,7 +57,6 @@ def naive_bayes_train(xRDD,yRDD): # maybe pass a tokenizer for filtering on line
     DcuratedRDD = dRDD.map(documentProcessor)
     wordCountByCatRDD = DcuratedRDD.flatMap(lambda x: x[0])#.groupByKey().map(lambda x: (x[0],list(x[1])))
     wordCountByCatRDD = wordCountByCatRDD.reduceByKey(catAccumulator)
-    #wordCountByCat.foreach(print)    
     catCountRDD = DcuratedRDD.flatMap(lambda x :[(tag,1) for tag in x[1]]).reduceByKey(lambda x,y:x+y)# -> [("c", c_num) , ("m",m_num), ~~~, ~~~]
     catCount = dict(catCountRDD.collect())
     totalWordsByCat = wordCountByCatRDD.map(lambda x: x[1]).reduce(catAccumulator)
@@ -119,31 +123,23 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat):
     predictionsRDD = docRDD.map(naiveBayes)
     return predictionsRDD
 
-(wordCountByCatRDD,catCount,totalWordsByCat) = naive_bayes_train(X,Y)
-
-#testDocument = u"Thursday night in the Oval Office with"
-#testDocument2 = u"Friday Morning out of the Square Swimming Pool without"
-#testRDD = sc.parallelize([testDocument,testDocument2]).zipWithIndex() # (testDocument, 0)
-
-
-testRDD = sc.textFile(args['xs']).zipWithIndex() # shift + $ to the end; shift+6 to the beginnig
-
-# predictionsRDD = naive_bayes_predict(testingDatasetDocsRDD, wordCountByCatRDD, catCountRDD)
-
-predictionsRDD = naive_bayes_predict(testRDD,wordCountByCatRDD, catCount, totalWordsByCat)
-
-#predictionsRDD.foreach(print)
 def score (predictionsRDD,testLabelsRDD):
     joinRDD = predictionsRDD.join(testLabelsRDD)     
     correctNum = 0
     total      = 0
     gradeRDD = joinRDD.map( lambda x : 1 if x[1][0][0] in x[1][1].split(",") else 0 ) # return value after :  
-    #print("*"*80)
-    #joinRDD.foreach(print)
-    #print("/"*80)
     correctNum = gradeRDD.reduce(lambda x,y :x+y) 
     total = gradeRDD.count()
     return correctNum / float (total)
+
+sc = SparkContext("local[*]","Naive Bayes", pyFiles = ['nb.py'])
+X = sc.textFile(args['x'])
+Y = sc.textFile(args['y'])
+(wordCountByCatRDD,catCount,totalWordsByCat) = naive_bayes_train(X,Y)
+
+testRDD = sc.textFile(args['xs']).zipWithIndex() # shift + $ to the end; shift+6 to the beginnig
+
+predictionsRDD = naive_bayes_predict(testRDD,wordCountByCatRDD, catCount, totalWordsByCat)
 	
 if args['ys'] is not None:
     testLabelsRDD = sc.textFile(args['ys']).zipWithIndex().map(lambda x:(x[1],x[0]))# docId being the first element
