@@ -27,43 +27,56 @@ if args['ys'] is None and args['o'] is None:
 
 
 
-def loadStopWords(path): # load the stopword file path # stop word are command words donot give information
-    return {s.lower() for s in sc.textFile(path).collect()} # since sw.txt is a small file, use collect to be one file and low it and return a set {}, look up set is very fast 
-def tokenizer(s,stopwords=None): # stop words in the tokenizer from "sw.txt" ~700 words, from multiple files 
+def loadStopWords(path): # load the stopword file path
+    # stop word are common words that are not indicative of the topic of the document; "the", "a", "on" ..etc
+    # stop words in "sw.txt" ~700 words, compiled from multiple sources 
+    # mainly http://ranks.nl/stopwords
+    # since sw.txt is a small file, use collect to be one file and low it and return a set {}, look up set is very fast 
+    return {s.lower() for s in sc.textFile(path).collect()}
+
+def tokenizer(s,stopwords=None): 
     if stopwords:
         return [x for x in s.lower().split() if x not in stopwords]  # only return the non-stop words
     else:
         return [x for x in s.lower().split()]
 
 def naive_bayes_train(xRDD, yRDD, stopwords=None): # maybe pass a tokenizer for filtering on line 18
-    #dRDD=xRDD.zip(yRDD)	
+    #dRDD=xRDD.zip(yRDD)	#buggy 
+
+    #.zip workaround
     xRDD=xRDD.zipWithIndex().map(lambda x: (x[1],x[0]))
     yRDD=yRDD.zipWithIndex().map(lambda x: (x[1],x[0]))
     dRDD=xRDD.join(yRDD).map(lambda x: x[1])
+    
     stopwordsBroadCast=sc.broadcast(stopwords) # stopwordsBroadCast is a handler or say data wrapper
 
-    #print("here"*80)
-#(wordCountByCatRDD, catCount)=naive_bayes_train(trainingDatasetDocsRDD,trainingDatasetLabelsRDD)
     def documentProcessor(x):
         (document,labels) = x
-        cleanLabels = [label for label in labels.upper().split(',') if label in {'MCAT','CCAT','ECAT','GCAT'}] # need to remove the no label documents
-        if len(cleanLabels) == 0:
-            return (None,None)
+        # only retain the 4 CATs
+        cleanLabels = [label for label in labels.upper().split(',') if label in {u'MCAT',u'CCAT',u'ECAT',u'GCAT'}] 
+        if len(cleanLabels) == 0: #has none of the 4 CATs
+            return (None,None) #mark them with None to be removed
+        # whatever coming back from the tokenizer, distribute the labels on them
+        # eg: ("uga represents",["MCAT","CCAT"]) => [("uga",{'MCAT':1,'CCAT':1}), ('represents',{'MCAT':1,'CCAT':1})]
         cleanWords = [(w,{label:1 for label in cleanLabels}) for w in tokenizer(document, stopwords=stopwordsBroadCast.value)] 
         return (cleanWords,cleanLabels)
 
     def catAccumulator(x,y):
+        "joins two dicts together by augmenting respective keys"
+        "eg: catAccumulate({'M':1,'C':5},{'C':2,'E':3}) => {'M':1,'C':7,'E':3}"
         for key in y:
             if key in x:
                 x[key]+= y[key]
             else:
                 x[key]=y[key]
         return x
-    DcuratedRDD = dRDD.map(documentProcessor).filter(lambda x: x[1] is not None)
-    wordCountByCatRDD = DcuratedRDD.flatMap(lambda x: x[0])#.groupByKey().map(lambda x: (x[0],list(x[1])))
-    wordCountByCatRDD = wordCountByCatRDD.reduceByKey(catAccumulator)
+    DcuratedRDD = dRDD.map(documentProcessor).filter(lambda x: x[1] is not None) #only keep the ones that are not marked None
+    wordCountByCatRDD = DcuratedRDD.flatMap(lambda x: x[0]) #spill all the words with their counts per category together
+    wordCountByCatRDD = wordCountByCatRDD.reduceByKey(catAccumulator) # reduce by the words to gather the counts for each word
+    #catCountRdd: counting how many documents (including duplicates) per category, basic word count done on labels
     catCountRDD = DcuratedRDD.flatMap(lambda x :[(tag,1) for tag in x[1]]).reduceByKey(lambda x,y:x+y)# -> [("c", c_num) , ("m",m_num), ~~~, ~~~]
-    catCount = dict(catCountRDD.collect())
+    catCount = dict(catCountRDD.collect())  #since we only have 4 CATs, we can collect them locally, and broadcast them to the workers
+    #totalWordsByCat: counting how many words (not distinct only) per category for later use in naive bayes.
     totalWordsByCat = wordCountByCatRDD.map(lambda x: x[1]).reduce(catAccumulator)
     return wordCountByCatRDD,catCount,totalWordsByCat
 
@@ -78,15 +91,11 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat, s
     jointRDD = testRDDSplit.join(wordCountByCatRDD)  #(uga,0).join((uga,{})) => (uga, (0,{})) 
     #wordCountByCat.join(testRDDSplit)     #(uga,{}).join((uga,0)) => (uga, ({},0))
 
-    #jointRDD.foreach(print)
-
     #what we have is (uga, (0, {M:1}))
     #what we need is (0, (uga,{M:1}))
     docIDFirstRDD=jointRDD.map(lambda x: (x[1][0], (x[0],x[1][1])))
-    #docIDFirstRDD.foreach(print)
 
     docRDD = docIDFirstRDD.groupByKey().map(lambda x: (x[0],list(x[1])))
-    #docRDD.foreach(print)
 
 
 
@@ -157,5 +166,5 @@ if args['ys'] is not None:
     accuracy = score(predictionsRDD, testLabelsRDD)
     print(accuracy*100)
 if args['o'] is not None:
-    #coalesce sort by docID, extract the predicted labels only, put all the data in one partition, and save to disk (1 partition => 1 file)
+    #sort by docID, extract the predicted labels only, put all the data in one partition, and save to disk (1 partition => 1 file)
     predictionsRDD.sortByKey().map(lambda x: x[1][0]).coalesce(1,False).saveAsTextFile(args['o'])
