@@ -154,3 +154,6 @@ if args['ys'] is not None:
     testLabelsRDD = sc.textFile(args['ys']).zipWithIndex().map(lambda x:(x[1],x[0]))# docId being the first element
     accuracy = score(predictionsRDD, testLabelsRDD)
     print(accuracy*100)
+if args['o'] is not None:
+    #coalesce sort by docID, extract the predicted labels only, put all the data in one partition, and save to disk (1 partition => 1 file)
+    predictionsRDD.sortByKey().map(lambda x: x[1][0]).coalesce(1,False).saveAsTextFile(args['o'])
