@@ -84,7 +84,7 @@ def naive_bayes_train(xRDD, yRDD, stopwords=None): # maybe pass a tokenizer for 
 
 
 def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat, stopwords=None):
-    stopwords=sc.broadcast(stopwords)
+    stopwordsBroadCast=sc.broadcast(stopwords)
     testRDDSplit=testRDD.flatMap(lambda x: [(w,x[1]) for w in  tokenizer(x[0],stopwords = stopwordsBroadCast.value)])
     #testRDDSplit.foreach(print)
 
