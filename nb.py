@@ -1,6 +1,6 @@
 from __future__ import print_function
 import argparse
-from pyspark import SparkContext
+from pyspark import SparkContext, SparkConf
 #from nltk import word_tokenize
 
 # Defining arguments for parsing the input fies
@@ -146,7 +146,7 @@ def score (predictionsRDD,testLabelsRDD):
     total = gradeRDD.count()
     return correctNum / float (total)
 
-sc = SparkContext("local[*]","Naive Bayes", pyFiles = ['nb.py'])
+sc = SparkContext(conf = SparkConf().setAppName("ChickenBurger-NaiveBayes"))
 X = sc.textFile(args['x'])
 Y = sc.textFile(args['y'])
 
