@@ -47,6 +47,8 @@ def naive_bayes_train(xRDD, yRDD, stopwords=None): # maybe pass a tokenizer for 
     def documentProcessor(x):
         (document,labels) = x
         cleanLabels = [label for label in labels.upper().split(',') if label in {'MCAT','CCAT','ECAT','GCAT'}] # need to remove the no label documents
+        if len(cleanLabels) == 0:
+            return (None,None)
         cleanWords = [(w,{label:1 for label in cleanLabels}) for w in tokenizer(document, stopwords=stopwordsBroadCast.value)] 
         return (cleanWords,cleanLabels)
 
@@ -57,7 +59,7 @@ def naive_bayes_train(xRDD, yRDD, stopwords=None): # maybe pass a tokenizer for 
             else:
                 x[key]=y[key]
         return x
-    DcuratedRDD = dRDD.map(documentProcessor)
+    DcuratedRDD = dRDD.map(documentProcessor).filter(lambda x: x[1] is not None)
     wordCountByCatRDD = DcuratedRDD.flatMap(lambda x: x[0])#.groupByKey().map(lambda x: (x[0],list(x[1])))
     wordCountByCatRDD = wordCountByCatRDD.reduceByKey(catAccumulator)
     catCountRDD = DcuratedRDD.flatMap(lambda x :[(tag,1) for tag in x[1]]).reduceByKey(lambda x,y:x+y)# -> [("c", c_num) , ("m",m_num), ~~~, ~~~]
