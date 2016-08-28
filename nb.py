@@ -43,7 +43,7 @@ def tokenizer(s,stopwords=None):
             return True
         except ValueError:
             return False
-    return [x for x in re.findall(r'[\w]+',s.lower()) if x not in stopwords and x != '' and not isfloat(x)]  # only return the non-stop words
+    return [x for x in s.lower().split() if x not in stopwords and x != '' and not isfloat(x)]  # only return the non-stop words
 
 def naive_bayes_train(xRDD, yRDD, stopwords=None): # maybe pass a tokenizer for filtering on line 18
     #dRDD=xRDD.zip(yRDD)	#buggy 
