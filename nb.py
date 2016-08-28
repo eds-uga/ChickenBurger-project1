@@ -35,10 +35,15 @@ def loadStopWords(path): # load the stopword file path
     return {s.lower() for s in sc.textFile(path).collect()}
 
 def tokenizer(s,stopwords=None): 
-    if stopwords:
-        return [x for x in s.lower().split() if x not in stopwords]  # only return the non-stop words
-    else:
-        return [x for x in s.lower().split()]
+    import re
+    stopwords = stopwords or set()
+    def isfloat(x):
+        try:
+            float(x)
+            return True
+        except ValueError:
+            return False
+    return [x for x in re.findall(r'[\w]+',s.lower()) if x not in stopwords and x != '' and not isfloat(x)]  # only return the non-stop words
 
 def naive_bayes_train(xRDD, yRDD, stopwords=None): # maybe pass a tokenizer for filtering on line 18
     #dRDD=xRDD.zip(yRDD)	#buggy 
@@ -95,7 +100,7 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat, s
     #what we need is (0, (uga,{M:1}))
     docIDFirstRDD=jointRDD.map(lambda x: (x[1][0], (x[0],x[1][1])))
 
-    docRDD = docIDFirstRDD.groupByKey().map(lambda x: (x[0],list(x[1])))
+    docRDD = docIDFirstRDD.groupByKey()
 
 
 
@@ -167,4 +172,4 @@ if args['ys'] is not None:
     print(accuracy*100)
 if args['o'] is not None:
     #sort by docID, extract the predicted labels only, put all the data in one partition, and save to disk (1 partition => 1 file)
-    predictionsRDD.sortByKey().map(lambda x: x[1][0]).coalesce(1,False).saveAsTextFile(args['o'])
+    predictionsRDD.sortByKey(ascending = True, numPartitions=1).map(lambda x: x[1][0]).saveAsTextFile(args['o'])
