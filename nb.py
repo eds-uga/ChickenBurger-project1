@@ -114,7 +114,7 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat, s
     testRDDSplit=testRDD.flatMap(lambda x: [(w,x[1]) for w in tokenizer(x[0],stopwords = stopwordsBroadCast.value)])
     #testRDDSplit.foreach(print)
 
-    jointRDD = testRDDSplit.join(wordCountByCatRDD)  #(uga,0).join((uga,{})) => (uga, (0,{})) 
+    jointRDD = testRDDSplit.leftOuterJoin(wordCountByCatRDD)  #(uga,0).join((uga,{})) => (uga, (0,{})) 
     #wordCountByCat.join(testRDDSplit)     #(uga,{}).join((uga,0)) => (uga, ({},0))
 
     #what we have is (uga, (0, {M:1}))
@@ -156,9 +156,10 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat, s
         totalWordsByCat = totalWordsByCatBroadCast.value
 
         for cat in catCount:
-            p = log((catCount[cat] + (1.0/len(catCount)))) - log(float(totalNumberOfDocs + 1))
+            p = log(catCount[cat] + 1.0) - log(totalNumberOfDocs + len(catCount))
             for word in x[1]:
-                p += log(word[1].get(cat,0)+ (1.0/vocabCount)) - log( (float(totalWordsByCat[cat]) + 1))
+                wordDict = word[1] or {}
+                p += log(wordDict.get(cat,0) + 1.0 ) - log( (float(totalWordsByCat[cat]) + vocabCount))
             if p >= maxP:
                 maxP = p
                 maxCat = cat
