@@ -22,7 +22,11 @@ The requirments and the test files can be found in the attaeched project1.pdf fi
 
 How it works?
 Why we choose NB classifiers? Because NB classifiers are good for spam filters which based different feastures, which is 
-very similar to our project. We choose NB method also because it is ease to write up,and it is good for large data set. We applied Multinomial Naive Baye method, by assuming the independence of p(xi|cj), where xi is the word in a document d, and the cj is the jth category. The idea is that  MAP Category = argmax P(cj)*Π(P(xi|cj); where P(cj) is:  (docu. number in Cj)/(total docu. number); Π(P(xi|cj) = p(x1|cj)*p(x2|cj)*~~~, where xi is the word in this document and Cj is the word's category. We can do that due to the above independent conditional assumption. Therefore, to preform our predict we need to: 1) calcuate the prior p(cj) by counting the docu.s; 2) calculate p(xi|cj) for each word. and p(xi|cj) is count(xi, cj)/sum(count xi, cj), which is a little bit triky. Details of this project can be found at the in code documentations. To overcome p(xi|cj)=0 problem, we used Laplace smooth method (add 1 method). We also took log() of the probabilities to overcome the underflow problem for large data set.
+very similar to our project. We choose NB method also because it is ease to write up,and it is good for large data set. We applied Multinomial Naive Baye method, by assuming the independence of p(xi|cj), where xi is the word in a document d, and the cj is the jth category. The idea is that  MAP Category = argmax P(cj)*Π(P(xi|cj); where P(cj) is:  (docu. number in Cj)/(total docu. number); Π(P(xi|cj) = p(x1|cj)*p(x2|cj)*...*p(xn|cj), where xi is the word in this document and Cj is the word's category. The reason we can do that  is due to the above independent conditional assumption. Therefore, to preform our prediction, we need to: 
+1) calculate the prior p(cj) by counting the docu.s; 
+2) calculate the p(xi|cj) for each word and the p(xi|cj) is count(xi, cj)/sum(count xi, cj), which calculation is a little bit triky.
+
+Details of this project can be found at the in code documentations. To overcome p(xi|cj)=0 problem, we used Laplace smooth method (add 1 method). We also took log() of the probabilities to overcome the underflow problem for large data set.
 
 Bugs? (or limitation and future improvement)
 It does what it should do, implements the NB method. But it is very "Naive", to improve, we can add weight to some important identification words, such as momey for ECAT. 
@@ -49,8 +53,3 @@ Please email us @@uga.edu if you found a bug.
 
 ChickenBurger Team
 Fall2016 UGA
-
-
-
-
-

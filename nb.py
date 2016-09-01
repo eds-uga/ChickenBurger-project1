@@ -1,7 +1,7 @@
 from __future__ import print_function # for testing purposes
 import argparse # for command args
 from pyspark import SparkContext, SparkConf # for spark usage
-# Defining arguments for parsing the input fies
+# Defining arguments for parsing the input files
 parser = argparse.ArgumentParser()
 parser.add_argument("-x", required = True,
 	help="Training set input file x")
@@ -18,21 +18,26 @@ parser.add_argument("-stop", required = False,
         help="Stopwords list file")
 
 args = vars(parser.parse_args())
-# To check if the testing label file or output path are not imported by the users
+# To check if the testing label file and output path are imported by the user
 if args['ys'] is None and args['o'] is None:
     raise ValueError('Either Testing set input file or output file should be provided')
 
-def loadStopWords(path): # load the stopword file path
-    # stop word are common words that are not indicative of the topic of the document; "the", "a", "on" ..etc
-    # stop words in "sw.txt" ~700 words, compiled from multiple sources 
-    # mainly http://ranks.nl/stopwords
-    # the HTML - Special Entity Codes are appended at the end 
-    # since sw.txt is a small file, use collect to be one file and lowcase it and return as a set {}, because look up set is very fast 
+def loadStopWords(path): 
+    """
+    load the stopword file path
+    stop word are common words that are not indicative of the topic of the document; "the", "a", "on" ..etc
+    stop words in "sw.txt" ~700 words, compiled from multiple sources 
+    mainly http://ranks.nl/stopwords
+    the HTML - Special Entity Codes are appended at the end 
+    since sw.txt is a small file, use collect to be one file and lowcase it and return as a set {}, because look up set is very fast 
+    """
     return {s.lower() for s in sc.textFile(path).collect()}
 
-# tokenizer fn
-# s is the docu. to be splitted, "stopwords=None" is a placeholder, will be none until the user will assign a value for it. 
-def tokenizer(s,stopwords=None): 
+def tokenizer(s,stopwords=None):
+    """
+    tokenizer fn
+    s is the docu. to be splitted, "stopwords=None" is a placeholder, will be none until the user assign a value for it. 
+    """ 
     stopwords = stopwords or set()     # an empty set class:len(set()) if not assigned i 
     def isfloat(x):                    # check for float type 
         try:
@@ -43,11 +48,22 @@ def tokenizer(s,stopwords=None):
     # return a list of "cleaned" words, "in" requires "iterable type", None is not iterable, set stepwords = or set() 
     return [x for x in s.lower().split() if x not in stopwords and x != '' and not isfloat(x)]  # only return the non-stop words, not-number(float), not "white-space"
 # in this project we applied Multinomial Naive Baye method, by assuming the independence of p(xi|cj), where xi is the word in a docu. d, and the cj is the jth category. The core idea is:  Category = argmax P(cj)*Π(P(xi|cj); where P(cj) is:  (docu. number in Cj)/(total docu. number); Π(P(xi|cj) = p(x1|cj)*p(x2|cj)*~~~, where xi is the word in this document and Cj is the word's category. We can do that since the above independent conditional assumption. Therefore, to preform our predict we need to: 1) calcuate the prior p(cj) by counting the docu.s; 2) calculate p(xi|cj) for each word. and p(xi|cj) is count(xi, cj)/sum(count xi, cj), which is a little bit triky. The below fn is to preform the countings
-
 # naive_bayes_train fn 
 # take inputs of training doc-file(:x) and label-file(:y) data then calculate the wordCountByCatRDD,catCount,totalWordsByCat
 
 def naive_bayes_train(xRDD, yRDD, stopwords=None): # xRDD : training-`docu. file; yRDD: label-file
+    '''
+    in this project we applied Multinomial Naive Baye method, by assuming the independence of p(xi|cj) for each words 
+    where xi is the word in a docu., d, and the cj is the jth category. The main idea is:  Category = argmax P(cj)*Π(P(xi|cj); 
+    where P(cj) is:  (docu. number in Cj)/(total docu. number); Π(P(xi|cj) = p(x1|cj)*p(x2|cj)*...*p(xn|cj), 
+    where xi is the word in this document and Cj is the word's category. The reason we can do that is based on the above independent conditional assumption. 
+    Therefore, to preform our prediction we need to: 
+    1) calculate the prior p(cj) by counting the docu.s; 
+    2) calculate p(xi|cj) for each word and p(xi|cj) is: count(xi, cj)/sum(count xi, cj), that calculation is a little bit triky. 
+    
+    This naive_bayes_train fn is to preform the countings based on the training files, (doc. and label files) 
+	it takes inputs of training doc-file(:x) and label-file(:y) data then calculate the wordCountByCatRDD,catCount,totalWordsByCat
+    '''
     #dRDD=xRDD.zip(yRDD)	#buggy, work around by using zipWithIndex()
     #.zip workaround
     xRDD=xRDD.zipWithIndex().map(lambda x: (x[1],x[0])) # zipWithIndex() -> [{(element0), 0}, {(element1),1}~~~} , label each docu. and return set of tuples
@@ -56,10 +72,9 @@ def naive_bayes_train(xRDD, yRDD, stopwords=None): # xRDD : training-`docu. file
     
     stopwordsBroadCast=sc.broadcast(stopwords)          # stopwords needs to be passed to all worker nodes stopwordsBroadCast is a handler or say data wrapper
 
-# if you look up the docu.s and labels file, there are some string like &quote ~~~ and the label are more than the required 4 labels, therefore we need to "clean" them first. The below subfunction did that  
+	# if you look up the docu.s and labels file, there are some string like &quote ~~~ and the label are more than the required 4 labels, therefore we need to "clean" them first. The below subfunction did that  
     def documentProcessor(x):
-        (document,labels) = x   #recall x is tuple type, we assign the first part of x as document, second part as labels
-        
+        (document,labels) = x   #recall x is tuple type, we assign the first part of x as document, second part as labels    
         # only retain the 4 CATs, return a list -> [], u'MCAT' for python string format
         cleanLabels = [label for label in labels.upper().split(',') if label in {u'MCAT',u'CCAT',u'ECAT',u'GCAT'}] 
         if len(cleanLabels) == 0: #has none of the 4 CATs
@@ -71,7 +86,7 @@ def naive_bayes_train(xRDD, yRDD, stopwords=None): # xRDD : training-`docu. file
         return (cleanWords,cleanLabels)  # return "cleanworlds" with label and count for 1
 
     def catAccumulator(x,y):
-        "joins two dicts{key,value} together by augmenting respective keys"
+        "joins two dicts{key,value} together by augmenting respective keys"                  # one line documentation
         "eg: catAccumulate({'M':1,'C':5},{'C':2,'E':3}) => {'M':1,'C':7,'E':3}"
         for key in y:
             if key in x:
@@ -91,8 +106,9 @@ def naive_bayes_train(xRDD, yRDD, stopwords=None): # xRDD : training-`docu. file
 
 
 
-# based on word counting to calculate the MAP
+
 def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat, stopwords=None):
+	"based on word counting to calculate the MAP"
     stopwordsBroadCast=sc.broadcast(stopwords)
     testRDDSplit=testRDD.flatMap(lambda x: [(w,x[1]) for w in tokenizer(x[0],stopwords = stopwordsBroadCast.value)])
     #testRDDSplit.foreach(print)
@@ -109,6 +125,7 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat, s
 
 
     def sumDictValues(d):
+    	"count the total nomber of documents including the over-counted ones"
         s = 0
         for i in d:
             s += d[i]
@@ -122,11 +139,12 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat, s
     totalNumberOfDocsBroadCast=sc.broadcast(totalNumberOfDocs)
     catCountBroadCast=sc.broadcast(catCount)
 
-# preform the NB method. 
-#1) Laplace smooth to overcome p(xi|cj)=0 problem
-#2) taking log() to overcome underflow problem for large data set
-
     def naiveBayes(x): #(docID, [(word1, {}), (word2, {}),....])
+    	"""
+    	preform the NB method. 
+		1) Laplace smoothing method(add 1 method) to overcome the p(xi|cj)=0 problem
+		2) taking log() to overcome the underflow problem for large data set 0.01*10^10 -> underflow number
+    	"""    	
         from math import log
         maxP = float('-inf')
         maxCat = u'MCAT'
@@ -150,17 +168,18 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat, s
     predictionsRDD = docRDD.map(naiveBayes)
     return predictionsRDD
 
-# this function gives the score of our prediction and the provide labeling file
+
 def score (predictionsRDD,testLabelsRDD):
+	"this function gives the score of our prediction based on the provided labeling files for small data set"
     joinRDD = predictionsRDD.join(testLabelsRDD)     
     correctNum = 0
     total      = 0
-    gradeRDD = joinRDD.map( lambda x : 1 if x[1][0][0] in x[1][1].split(",") else 0 ) # return value after :  
+    gradeRDD = joinRDD.map( lambda x : 1 if x[1][0][0] in x[1][1].split(",") else 0 )
     correctNum = gradeRDD.reduce(lambda x,y :x+y) 
     total = gradeRDD.count()
     return correctNum / float (total)
 
-# "main" fn, real deal now
+# applying the above fns 
 sc = SparkContext(conf = SparkConf().setAppName("ChickenBurger-NaiveBayes"))
 X = sc.textFile(args['x'])
 Y = sc.textFile(args['y'])
