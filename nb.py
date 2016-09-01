@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import print_function # for testing purposes
 import argparse # for command args
 from pyspark import SparkContext, SparkConf # for spark usage
@@ -108,7 +109,7 @@ def naive_bayes_train(xRDD, yRDD, stopwords=None): # xRDD : training-`docu. file
 
 
 def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat, stopwords=None):
-	"based on word counting to calculate the MAP"
+    "based on word counting to calculate the MAP"
     stopwordsBroadCast=sc.broadcast(stopwords)
     testRDDSplit=testRDD.flatMap(lambda x: [(w,x[1]) for w in tokenizer(x[0],stopwords = stopwordsBroadCast.value)])
     #testRDDSplit.foreach(print)
@@ -170,7 +171,7 @@ def naive_bayes_predict (testRDD,wordCountByCatRDD, catCount, totalWordsByCat, s
 
 
 def score (predictionsRDD,testLabelsRDD):
-	"this function gives the score of our prediction based on the provided labeling files for small data set"
+    "this function gives the score of our prediction based on the provided labeling files for small data set"
     joinRDD = predictionsRDD.join(testLabelsRDD)     
     correctNum = 0
     total      = 0
