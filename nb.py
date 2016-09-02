@@ -1,7 +1,8 @@
-# -*- coding: utf-8 -*-
+
 from __future__ import print_function # for testing purposes
-import argparse # for command args
+import argparse 
 from pyspark import SparkContext, SparkConf # for spark usage
+
 # Defining arguments for parsing the input files
 parser = argparse.ArgumentParser()
 parser.add_argument("-x", required = True,
@@ -36,24 +37,27 @@ def loadStopWords(path):
 
 def tokenizer(s,stopwords=None):
     """
-    tokenizer fn
-    s is the docu. to be splitted, "stopwords=None" is a placeholder, will be none until the user assign a value for it. 
+    tokenizer function
+    s is the document to be splitted, 
+    "stopwords=None" is a placeholder, will be none until the user assign a value for it. 
+    This function returns a list of "cleaned" words, "in" requires "iterable type", None is not iterable, set stepwords = or set(), It only
+    returns the non-stop words, not-number(float), not "white-space". 
     """ 
     stopwords = stopwords or set()     # an empty set class:len(set()) if not assigned i 
-    def isfloat(x):                    # check for float type 
+    def isfloat(x):                     
         try:
             float(x)
             return True
         except ValueError:
             return False
-    # return a list of "cleaned" words, "in" requires "iterable type", None is not iterable, set stepwords = or set() 
-    return [x for x in s.lower().split() if x not in stopwords and x != '' and not isfloat(x)]  # only return the non-stop words, not-number(float), not "white-space"
+        return [x for x in s.lower().split() if x not in stopwords and x != '' and not isfloat(x)]   
 # in this project we applied Multinomial Naive Baye method, by assuming the independence of p(xi|cj), where xi is the word in a docu. d, and the cj is the jth category. The core idea is:  Category = argmax P(cj)*Π(P(xi|cj); where P(cj) is:  (docu. number in Cj)/(total docu. number); Π(P(xi|cj) = p(x1|cj)*p(x2|cj)*~~~, where xi is the word in this document and Cj is the word's category. We can do that since the above independent conditional assumption. Therefore, to preform our predict we need to: 1) calcuate the prior p(cj) by counting the docu.s; 2) calculate p(xi|cj) for each word. and p(xi|cj) is count(xi, cj)/sum(count xi, cj), which is a little bit triky. The below fn is to preform the countings
 # naive_bayes_train fn 
 # take inputs of training doc-file(:x) and label-file(:y) data then calculate the wordCountByCatRDD,catCount,totalWordsByCat
 
-def naive_bayes_train(xRDD, yRDD, stopwords=None): # xRDD : training-`docu. file; yRDD: label-file
+def naive_bayes_train(xRDD, yRDD, stopwords=None): 
     '''
+    Inputs : xRDD : training-`docu. file; yRDD: label-file 
     in this project we applied Multinomial Naive Baye method, by assuming the independence of p(xi|cj) for each words 
     where xi is the word in a docu., d, and the cj is the jth category. The main idea is:  Category = argmax P(cj)*Π(P(xi|cj); 
     where P(cj) is:  (docu. number in Cj)/(total docu. number); Π(P(xi|cj) = p(x1|cj)*p(x2|cj)*...*p(xn|cj), 
