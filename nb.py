@@ -1,4 +1,3 @@
-
 from __future__ import print_function # for testing purposes
 import argparse 
 from pyspark import SparkContext, SparkConf # for spark usage
@@ -75,9 +74,8 @@ def naive_bayes_train(xRDD, yRDD, stopwords=None):
     yRDD=yRDD.zipWithIndex().map(lambda x: (x[1],x[0])) 
     dRDD=xRDD.join(yRDD).map(lambda x: x[1])            #dRDD are table of docu.s and labels
     
-    stopwordsBroadCast=sc.broadcast(stopwords)          # stopwords needs to be passed to all worker nodes stopwordsBroadCast is a handler or say data wrapper
-
-	# if you look up the docu.s and labels file, there are some string like &quote ~~~ and the label are more than the required 4 labels, therefore we need to "clean" them first. The below subfunction did that  
+    stopwordsBroadCast=sc.broadcast(stopwords)          
+  
     def documentProcessor(x):
         (document,labels) = x   #recall x is tuple type, we assign the first part of x as document, second part as labels    
         # only retain the 4 CATs, return a list -> [], u'MCAT' for python string format
@@ -185,12 +183,10 @@ def score (predictionsRDD,testLabelsRDD):
     total = gradeRDD.count()
     return correctNum / float (total)
 
-# applying the above fns 
 sc = SparkContext(conf = SparkConf().setAppName("ChickenBurger-NaiveBayes"))
 X = sc.textFile(args['x'])
 Y = sc.textFile(args['y'])
 
-#load stop words only if a pass is provided
 stopwords = None
 if args['stop']:
     stopwords = loadStopWords(args['stop'])
